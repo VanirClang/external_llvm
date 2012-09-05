@@ -34,6 +34,17 @@ static cl::opt<bool>
 StrictAlign("arm-strict-align", cl::Hidden,
             cl::desc("Disallow all unaligned memory accesses"));
 
+// Ignore FeatureHasRAS for All Processors
+//
+// NOTE: The code generator will generate "b.w" instruction for the
+// processors with FeatureHasRAS, when the callee function has
+// "noreturn" attribute.  However, this instruction is not well-
+// supported in several toolchains.  Thus, here's the flag to override
+// the processor-specific attribute.
+static cl::opt<bool>
+IgnoreHasRAS("arm-ignore-has-ras", cl::Hidden, cl::init(false),
+             cl::desc("Ignore FeatureHasRAS for all processors"));
+
 ARMSubtarget::ARMSubtarget(const std::string &TT, const std::string &CPU,
                            const std::string &FS)
   : ARMGenSubtargetInfo(TT, CPU, FS)
@@ -126,6 +137,10 @@ ARMSubtarget::ARMSubtarget(const std::string &TT, const std::string &CPU,
   // configuration.
   if (!StrictAlign && hasV6Ops() && isTargetDarwin())
     AllowsUnalignedMem = true;
+
+  // Ignore HasRAS subtarget feature
+  if (IgnoreHasRAS)
+    HasRAS = false;
 }
 
 /// GVIsIndirectSymbol - true if the GV will be accessed via an indirect symbol.
