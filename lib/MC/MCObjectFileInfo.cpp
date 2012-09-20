@@ -219,7 +219,8 @@ void MCObjectFileInfo::InitMachOMCObjectFileInfo(Triple T) {
 }
 
 void MCObjectFileInfo::InitELFMCObjectFileInfo(Triple T) {
-  if (T.getArch() == Triple::x86) {
+  switch (T.getArch()) {
+  case Triple::x86:
     PersonalityEncoding = (RelocM == Reloc::PIC_)
      ? dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4
      : dwarf::DW_EH_PE_absptr;
@@ -232,7 +233,9 @@ void MCObjectFileInfo::InitELFMCObjectFileInfo(Triple T) {
     TTypeEncoding = (RelocM == Reloc::PIC_)
      ? dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4
      : dwarf::DW_EH_PE_absptr;
-  } else if (T.getArch() == Triple::x86_64) {
+    break;
+
+  case Triple::x86_64:
     FDECFIEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
 
     if (RelocM == Reloc::PIC_) {
@@ -256,6 +259,15 @@ void MCObjectFileInfo::InitELFMCObjectFileInfo(Triple T) {
       TTypeEncoding = (CMModel == CodeModel::Small)
         ? dwarf::DW_EH_PE_udata4 : dwarf::DW_EH_PE_absptr;
     }
+    break;
+
+  case Triple::mips:
+  case Triple::mipsel:
+    PersonalityEncoding = dwarf::DW_EH_PE_indirect;
+    break;
+
+  default:
+    break;
   }
 
   // Solaris requires different flags for .eh_frame to seemingly every other
