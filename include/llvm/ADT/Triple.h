@@ -99,6 +99,7 @@ public:
     Minix,
     RTEMS,
     NativeClient,
+    NDK,        // Android NDK
     CNK,         // BG/P Compute-Node Kernel
     Bitrig
   };
