@@ -6805,6 +6805,13 @@ ARMTargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
       .addReg(MI->getOperand(1).getReg()).addMBB(copy0MBB)
       .addReg(MI->getOperand(2).getReg()).addMBB(thisMBB);
 
+    // Update the live-ins registers
+    for (MachineBasicBlock::livein_iterator I = thisMBB->livein_begin(),
+         E = thisMBB->livein_end(); I != E; ++I) {
+      copy0MBB->addLiveIn(*I);
+      sinkMBB->addLiveIn(*I);
+    }
+
     MI->eraseFromParent();   // The pseudo instruction is gone now.
     return BB;
   }
