@@ -39,4 +39,4 @@ POLLY_INC :=  @gmp_inc@ @isl_inc@ \
 
 POLLY_LD := @gmp_ld@ @isl_ld@ @cloog_ld@ @openscop_ld@ @scoplib_ld@ @scoplib_rpath@
 
-POLLY_LIB := @gmp_lib@ @isl_lib@ @cloog_lib@ @openscop_lib@ @scoplib_lib@
+POLLY_LIB := @gmp_lib@ @isl_lib@ @cloog_lib@ @isl_lib@ @gmp_lib@ @openscop_lib@ @scoplib_lib@
