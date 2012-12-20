@@ -35,6 +35,10 @@
 #include "cloog/isl/cloog.h"
 
 #include <unistd.h>
+#if defined(_WIN32)
+#include <fcntl.h>
+#define PIPE_BUFFER_SIZE 64*1024
+#endif
 
 using namespace llvm;
 using namespace polly;
@@ -89,7 +93,11 @@ class FileToString {
 
 public:
   FileToString() {
+#if defined(_WIN32)
+    _pipe(FD, PIPE_BUFFER_SIZE, _O_BINARY);
+#else
     pipe(FD);
+#endif
     input = fdopen(FD[1], "w");
   }
   ~FileToString() {
