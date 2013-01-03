@@ -6785,6 +6785,49 @@ ARMTargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
     BB->addSuccessor(copy0MBB);
     BB->addSuccessor(sinkMBB);
 
+    // Replace the live-ins physical register with virtual register, because
+    // physical register is not visible across the basic blocks.
+    MachineRegisterInfo &MRI = F->getRegInfo();
+    const TargetRegisterInfo &TRI = *getTargetMachine().getRegisterInfo();
+
+    DenseMap<unsigned, unsigned> LiveInsToVReg;
+    for (MachineBasicBlock::livein_iterator LII = BB->livein_begin(),
+         LIE = BB->livein_end(); LII != LIE; ++LII) {
+      if (TargetRegisterInfo::isPhysicalRegister(*LII)) {
+        unsigned PReg = *LII;
+        unsigned VReg = MRI.createVirtualRegister(&ARM::GPRRegClass);
+        BuildMI(BB, dl, TII->get(TargetOpcode::COPY), VReg).addReg(PReg);
+        LiveInsToVReg[PReg] = VReg;
+      }
+    }
+
+    for (MachineBasicBlock::iterator MII = sinkMBB->instr_begin(),
+         MIE = sinkMBB->instr_end(); MII != MIE; ++MII) {
+      SmallVector<DenseMap<unsigned, unsigned>::iterator, 4> RegKilled;
+      for (unsigned i = 0, e = MII->getNumOperands(); i != e; ++i) {
+        MachineOperand &MO = MII->getOperand(i);
+        if (!MO.isReg()) {
+          continue;
+        }
+        DenseMap<unsigned, unsigned>::iterator RegIter
+          = LiveInsToVReg.find(MO.getReg());
+        if (RegIter != LiveInsToVReg.end()) {
+          if (MO.isDef()) {
+            // This machine instruction defines PReg.  We should stop replacing
+            // PReg with VReg *after* this instruction.  Note: the use of PReg
+            // *in* this instruction still need to be replaced.
+            RegKilled.push_back(RegIter);
+          } else {
+            // Replace the use of PReg with VReg
+            MO.substVirtReg(RegIter->second, MO.getSubReg(), TRI);
+          }
+        }
+      }
+      for (size_t i = 0; i < RegKilled.size(); ++i) {
+        LiveInsToVReg.erase(RegKilled[i]);
+      }
+    }
+
     BuildMI(BB, dl, TII->get(ARM::tBcc)).addMBB(sinkMBB)
       .addImm(MI->getOperand(3).getImm()).addReg(MI->getOperand(4).getReg());
 
@@ -6804,13 +6847,6 @@ ARMTargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
             TII->get(ARM::PHI), MI->getOperand(0).getReg())
       .addReg(MI->getOperand(1).getReg()).addMBB(copy0MBB)
       .addReg(MI->getOperand(2).getReg()).addMBB(thisMBB);
-
-    // Update the live-ins registers
-    for (MachineBasicBlock::livein_iterator I = thisMBB->livein_begin(),
-         E = thisMBB->livein_end(); I != E; ++I) {
-      copy0MBB->addLiveIn(*I);
-      sinkMBB->addLiveIn(*I);
-    }
 
     MI->eraseFromParent();   // The pseudo instruction is gone now.
     return BB;

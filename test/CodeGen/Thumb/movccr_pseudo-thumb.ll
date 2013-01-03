@@ -1,17 +1,12 @@
-; RUN: llc -o - -march thumb \
-; RUN:     -arm-enable-ehabi -arm-enable-ehabi-descriptors %s\
-; RUN:   | FileCheck %s
+; RUN: llc %s -o /dev/null \
+; RUN:     -march thumb -mcpu=cortex-a8 -mattr=-thumb2 \
+; RUN:     -arm-enable-ehabi -arm-enable-ehabi-descriptors \
+; RUN:     -verify-machineinstrs
 
 target datalayout = "e-p:32:32:32-i1:8:32-i8:8:32-i16:16:32-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:64:128-a0:0:32-n32-S64"
 target triple = "thumb-none-linux-androideabi"
 
 %class.Stream = type { i8 }
-
-define zeroext i1 @_Z8is_errori(i32 %ch) nounwind readnone {
-entry:
-  %cmp = icmp eq i32 %ch, -1
-  ret i1 %cmp
-}
 
 define zeroext i1 @_Z4testP6StreamS0_(%class.Stream* %f, %class.Stream* %t) {
 entry:
@@ -46,13 +41,6 @@ lpad4.thread:                                     ; preds = %lpad1
   %6 = extractvalue { i8*, i32 } %5, 0
   %extract.t2541 = icmp ne i8 %result.0, 0
   br label %catch20
-
-; CHECK: lpad4.thread
-; CHECK: ands r7, r1
-; CHECK: movs r4, #1
-; CHECK: cmp r7
-; CHECK: bne
-; CHECK: mov r4, r7
 
 if.then.i.i37:                                    ; preds = %if.end
   %7 = landingpad { i8*, i32 } personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*)
