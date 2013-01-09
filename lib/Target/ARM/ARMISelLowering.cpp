@@ -42,6 +42,7 @@
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/MC/MCSectionMachO.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/CommandLine.h"
@@ -6785,46 +6786,70 @@ ARMTargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
     BB->addSuccessor(copy0MBB);
     BB->addSuccessor(sinkMBB);
 
-    // Replace the live-ins physical register with virtual register, because
+    // Replace the physical register with virtual register, because
     // physical register is not visible across the basic blocks.
     MachineRegisterInfo &MRI = F->getRegInfo();
     const TargetRegisterInfo &TRI = *getTargetMachine().getRegisterInfo();
 
-    DenseMap<unsigned, unsigned> LiveInsToVReg;
-    for (MachineBasicBlock::livein_iterator LII = BB->livein_begin(),
-         LIE = BB->livein_end(); LII != LIE; ++LII) {
-      if (TargetRegisterInfo::isPhysicalRegister(*LII)) {
-        unsigned PReg = *LII;
-        unsigned VReg = MRI.createVirtualRegister(&ARM::GPRRegClass);
-        BuildMI(BB, dl, TII->get(TargetOpcode::COPY), VReg).addReg(PReg);
-        LiveInsToVReg[PReg] = VReg;
+    // Live analysis of the physical registers
+    DenseMap<unsigned, unsigned> SplittedPRegs;
+    for (MachineBasicBlock::reverse_iterator MII = sinkMBB->instr_rbegin(),
+         MIE = sinkMBB->instr_rend(); MII != MIE; ++MII) {
+      // Transfer function of backward data-flow analysis:
+      // f_i(x) = use_i + (x - def_i)
+
+      // Remove the newly defined registers first
+      for (unsigned i = 0, e = MII->getNumOperands(); i != e; ++i) {
+        MachineOperand &MO = MII->getOperand(i);
+        if (MO.isReg() && MO.isDef() &&
+            TargetRegisterInfo::isPhysicalRegister(MO.getReg())) {
+          SplittedPRegs.erase(MO.getReg());
+        }
+      }
+
+      // Insert the newly use of registers
+      for (unsigned i = 0, e = MII->getNumOperands(); i != e; ++i) {
+        MachineOperand &MO = MII->getOperand(i);
+        if (MO.isReg() && MO.isUse() &&
+            TargetRegisterInfo::isPhysicalRegister(MO.getReg())) {
+          SplittedPRegs.insert(std::make_pair(MO.getReg(), 0u));
+        }
       }
     }
 
+    // Create virtual registers at the end of thisMBB
+    for (DenseMap<unsigned, unsigned>::iterator I = SplittedPRegs.begin(),
+         E = SplittedPRegs.end(); I != E; ++I) {
+      unsigned PReg = I->first;
+      unsigned VReg = MRI.createVirtualRegister(&ARM::GPRRegClass);
+      BuildMI(BB, dl, TII->get(TargetOpcode::COPY), VReg).addReg(PReg);
+      I->second = VReg;
+    }
+
+    // Replace the live physical registers across the machine basic blocks
     for (MachineBasicBlock::iterator MII = sinkMBB->instr_begin(),
          MIE = sinkMBB->instr_end(); MII != MIE; ++MII) {
-      SmallVector<DenseMap<unsigned, unsigned>::iterator, 4> RegKilled;
+      // Replace the physical register use with the virtual register use.
       for (unsigned i = 0, e = MII->getNumOperands(); i != e; ++i) {
         MachineOperand &MO = MII->getOperand(i);
-        if (!MO.isReg()) {
-          continue;
-        }
-        DenseMap<unsigned, unsigned>::iterator RegIter
-          = LiveInsToVReg.find(MO.getReg());
-        if (RegIter != LiveInsToVReg.end()) {
-          if (MO.isDef()) {
-            // This machine instruction defines PReg.  We should stop replacing
-            // PReg with VReg *after* this instruction.  Note: the use of PReg
-            // *in* this instruction still need to be replaced.
-            RegKilled.push_back(RegIter);
-          } else {
-            // Replace the use of PReg with VReg
-            MO.substVirtReg(RegIter->second, MO.getSubReg(), TRI);
+        if (MO.isReg() && MO.isUse()) {
+          DenseMap<unsigned, unsigned>::iterator RI
+            = SplittedPRegs.find(MO.getReg());
+          if (RI != SplittedPRegs.end()) {
+            MO.substVirtReg(RI->second, MO.getSubReg(), TRI);
           }
         }
       }
-      for (size_t i = 0; i < RegKilled.size(); ++i) {
-        LiveInsToVReg.erase(RegKilled[i]);
+
+      // If this machine instruction defines the physical register, then this
+      // physical register is no longer being defined across the machine basic
+      // blocks, and should not be replaced by the virtual register.
+      for (unsigned i = 0, e = MII->getNumOperands(); i != e; ++i) {
+        MachineOperand &MO = MII->getOperand(i);
+        if (MO.isReg() && MO.isDef() &&
+            TargetRegisterInfo::isPhysicalRegister(MO.getReg())) {
+          SplittedPRegs.erase(MO.getReg());
+        }
       }
     }
 
