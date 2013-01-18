@@ -112,6 +112,8 @@ cross-compile-build-tools:
 	  unset CFLAGS ; \
 	  unset CXXFLAGS ; \
 	  unset SDKROOT ; \
+	  unset LDFLAGS ; \
+
 	  $(PROJ_SRC_DIR)/configure --build=$(BUILD_TRIPLE) \
 		--host=$(BUILD_TRIPLE) --target=$(BUILD_TRIPLE) \
 	        --disable-polly ; \
