@@ -111,6 +111,7 @@ cross-compile-build-tools:
 	  cd BuildTools ; \
 	  unset CFLAGS ; \
 	  unset CXXFLAGS ; \
+	  unset LDFLAGS ; \
 	  unset SDKROOT ; \
 	  unset LDFLAGS ; \
 
