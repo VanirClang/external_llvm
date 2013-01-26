@@ -75,7 +75,7 @@ private:
                                         // anything other than to convey comment
                                         // information to AsmPrinter.
 
-  uint16_t NumMemRefs;                  // information on memory references
+  uint8_t NumMemRefs;                   // Information on memory references.
   mmo_iterator MemRefs;
 
   std::vector<MachineOperand> Operands; // the operands
@@ -955,7 +955,8 @@ public:
   /// list. This does not transfer ownership.
   void setMemRefs(mmo_iterator NewMemRefs, mmo_iterator NewMemRefsEnd) {
     MemRefs = NewMemRefs;
-    NumMemRefs = NewMemRefsEnd - NewMemRefs;
+    NumMemRefs = uint8_t(NewMemRefsEnd - NewMemRefs);
+    assert(NumMemRefs == NewMemRefsEnd - NewMemRefs && "Too many memrefs");
   }
 
 private:
