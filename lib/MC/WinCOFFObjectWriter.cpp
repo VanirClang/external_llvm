@@ -34,6 +34,12 @@
 #include "llvm/Support/TimeValue.h"
 #include <cstdio>
 
+#ifdef __clang__
+// When building with clang, Bionic #defines sprintf,
+// and std::__builtin___sprintf_chk isn't valid
+#undef sprintf
+#endif
+
 using namespace llvm;
 
 namespace {
